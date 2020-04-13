@@ -57,15 +57,12 @@ export function createMachine(stateMachineDefinition: IStateMachine) {
       return stateModel;
     };
 
-    buildState = (
-      stateNode: IStateModel,
-      val?: string
-    ): any => {
+    buildState = (stateNode: IStateModel, val?: string): any => {
       if (!stateNode.parent) {
         return val;
       }
       let parent = stateNode;
-      let obj:string|object = val||"";
+      let obj: string | object = val || "";
 
       while (parent.parent) {
         const state: Dictionary<string | object> = {};
@@ -84,28 +81,36 @@ export function createMachine(stateMachineDefinition: IStateMachine) {
         stateModel
       );
 
-      //@ts-ignore
-      const currentState = stateNode.states[key];
-      //@ts-ignore
+      const states = stateNode.states;
+      if (!states) {
+        return null;
+      }
+      const currentState = states[key];
+      if (!currentState || !currentState.on) {
+        return null;
+      }
+
       let nextStateName = currentState.on[event];
 
-      //@ts-ignore
-      let nextState: IStateModel = stateNode.states[nextStateName];
-      if (nextState.states && nextState.initial) {
+      let nextState: IStateModel = states[nextStateName];
+      if (nextState?.type === "final") {
+        if (stateNode.parent && stateNode.on && nextState?.result) {
+          // finished sub-state and automatically navigate to next state
+          const subState = stateNode.on[nextState?.result];
+          this.state.value = this.buildState(stateNode.parent, subState);
+          return this.state;
+        }
+      }
+
+      if (nextState && nextState.states && nextState.initial) {
+        // on nested state
         const newLocal = nextState.initial;
         nextState = nextState.states[newLocal];
         nextState.parent = stateNode;
         nextState.name = nextStateName;
-        this.state.value = this.buildState(
-          nextState,
-          newLocal
-        );
+        this.state.value = this.buildState(nextState, newLocal);
       } else {
-        //@ts-ignore
-        this.state.value = this.buildState(
-          stateNode,
-          nextStateName
-        );
+        this.state.value = this.buildState(stateNode, nextStateName);
       }
 
       return this.state;
